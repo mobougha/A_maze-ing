@@ -1,134 +1,151 @@
+from __future__ import annotations
+
 import sys
-from maze_generator import MazeGenerator
+from dataclasses import dataclass
+from typing import Optional
+
+from maze_generator import MazeGenerator, MazeParams
 
 
-def parse_config(file_path: str) -> dict:
-    config = {}
-
-    try:
-        with open(file_path, "r") as f:
-            for line in f:
-
-                line = line.strip()
-
-                if not line or line.startswith("#"):
-                    continue
-
-                if "=" not in line:
-                    print("Invalid line:", line)
-                    continue
-
-                key, value = line.split("=")
-
-                config[key.strip()] = value.strip()
-
-        required = ["WIDTH", "HEIGHT", "ENTRY", "EXIT", "OUTPUT_FILE"]
-
-        for key in required:
-            if key not in config:
-                raise ValueError(f"Missing key: {key}")
-
-        config["WIDTH"] = int(config["WIDTH"])
-        config["HEIGHT"] = int(config["HEIGHT"])
-        config["ENTRY"] = tuple(map(int, config["ENTRY"].split(",")))
-        config["EXIT"] = tuple(map(int, config["EXIT"].split(",")))
-
-    except Exception as e:
-        print("Error reading config:", e)
-        exit(1)
-
-    return config
+@dataclass(frozen=True)
+class Config:
+    width: int
+    height: int
+    entry: tuple[int, int]
+    exit: tuple[int, int]
+    output_file: str
+    perfect: bool
+    seed: Optional[int] = None
 
 
-def display_maze(grid):
+def _parse_bool(value: str) -> bool:
+    v = value.strip().lower()
+    if v in {"true", "1", "yes", "y"}:
+        return True
+    if v in {"false", "0", "no", "n"}:
+        return False
+    raise ValueError(f"Invalid boolean value: {value!r} (expected True/False)")
 
-    height = len(grid)
-    width = len(grid[0])
 
-    for y in range(height):
+def _parse_xy(value: str) -> tuple[int, int]:
+    parts = [p.strip() for p in value.split(",")]
+    if len(parts) != 2:
+        raise ValueError(f"Invalid coordinate {value!r} (expected 'x,y')")
+    return (int(parts[0]), int(parts[1]))
 
+
+def parse_config(file_path: str) -> Config:
+    raw: dict[str, str] = {}
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        for lineno, line in enumerate(f, start=1):
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            if "=" not in s:
+                raise ValueError(f"{file_path}:{lineno}: invalid line (missing '='): {s!r}")
+
+            key, value = s.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+
+            if not key:
+                raise ValueError(f"{file_path}:{lineno}: empty key")
+            if key in raw:
+                raise ValueError(f"{file_path}:{lineno}: duplicate key: {key}")
+
+            raw[key] = value
+
+    required = ["WIDTH", "HEIGHT", "ENTRY", "EXIT", "OUTPUT_FILE", "PERFECT"]
+    for k in required:
+        if k not in raw:
+            raise ValueError(f"Missing key: {k}")
+
+    width = int(raw["WIDTH"])
+    height = int(raw["HEIGHT"])
+    entry = _parse_xy(raw["ENTRY"])
+    exit_ = _parse_xy(raw["EXIT"])
+    output_file = raw["OUTPUT_FILE"]
+    perfect = _parse_bool(raw["PERFECT"])
+
+    seed: Optional[int] = None
+    if "SEED" in raw and raw["SEED"] != "":
+        seed = int(raw["SEED"])
+
+    if width <= 0 or height <= 0:
+        raise ValueError("WIDTH and HEIGHT must be > 0")
+    if entry == exit_:
+        raise ValueError("ENTRY and EXIT must be different")
+
+    ex, ey = entry
+    xx, xy = exit_
+    if not (0 <= ex < width and 0 <= ey < height):
+        raise ValueError(f"ENTRY out of bounds: {entry} for {width}x{height}")
+    if not (0 <= xx < width and 0 <= xy < height):
+        raise ValueError(f"EXIT out of bounds: {exit_} for {width}x{height}")
+
+    if not output_file:
+        raise ValueError("OUTPUT_FILE must not be empty")
+
+    return Config(
+        width=width,
+        height=height,
+        entry=entry,
+        exit=exit_,
+        output_file=output_file,
+        perfect=perfect,
+        seed=seed,
+    )
+
+
+def display_maze(grid: list[list[int]], entry: tuple[int, int], exit_: tuple[int, int]) -> None:
+    """ASCII render the maze (always prints)."""
+    h = len(grid)
+    w = len(grid[0])
+
+    for y in range(h):
         top = ""
-        middle = ""
-
-        for x in range(width):
-
+        mid = ""
+        for x in range(w):
             cell = grid[y][x]
+            top += "+---" if (cell & 1) else "+   "
+            mid += "|" if (cell & 8) else " "
 
-            # top wall
-            if cell & 1:
-                top += "+---"
+            if (x, y) == entry:
+                mid += " E "
+            elif (x, y) == exit_:
+                mid += " X "
             else:
-                top += "+   "
-
-            # left wall
-            if cell & 8:
-                middle += "|"
-            else:
-                middle += " "
-
-            # 🔥 STRONG VISIBILITY
-            if cell == 15:
-                middle += "███"   # VERY visible
-            else:
-                middle += "   "
-
+                mid += "   "
         print(top + "+")
-        print(middle + "|")
+        print(mid + "|")
 
-    print("+---" * width + "+")
-
-
-def write_output(file_name, grid, entry, exit, path):
-
-    try:
-        with open(file_name, "w") as f:
-
-            for row in grid:
-                line = ""
-
-                for cell in row:
-                    line += hex(cell)[2:].upper()
-
-                f.write(line + "\n")
-
-            f.write("\n")
-
-            f.write(f"{entry[0]},{entry[1]}\n")
-            f.write(f"{exit[0]},{exit[1]}\n")
-            f.write(path + "\n")
-
-    except Exception as e:
-        print("Error writing file:", e)
+    print("+---" * w + "+")
 
 
-def main():
-
+def main() -> None:
     if len(sys.argv) != 2:
         print("Usage: python3 a_maze_ing.py config.txt")
         return
 
-    config = parse_config(sys.argv[1])
+    try:
+        cfg = parse_config(sys.argv[1])
+        gen = MazeGenerator(
+            MazeParams(
+                width=cfg.width,
+                height=cfg.height,
+                entry=cfg.entry,
+                exit=cfg.exit,
+                perfect=cfg.perfect,
+                seed=cfg.seed,
+            )
+        )
+        gen.generate()
+    except (OSError, ValueError) as e:
+        print(f"Error: {e}")
+        return
 
-    maze = MazeGenerator(
-        config["WIDTH"],
-        config["HEIGHT"],
-        int(config.get("SEED", 0))
-    )
-
-    maze.generate()
-
-    # temporary path
-    path = "TEST"
-
-    display_maze(maze.grid)
-
-    write_output(
-        config["OUTPUT_FILE"],
-        maze.grid,
-        config["ENTRY"],
-        config["EXIT"],
-        path
-    )
+    display_maze(gen.grid, cfg.entry, cfg.exit)
 
 
 if __name__ == "__main__":
