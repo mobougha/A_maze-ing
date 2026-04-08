@@ -21,6 +21,14 @@ DIRS = [
     (-1, 0, W, E, "W"),
 ]
 
+# Minimum maze dimensions required to fit the "42" pattern (10-wide × 7-tall box
+# with a 1-cell margin on each side).
+MIN_PATTERN_WIDTH = 12
+MIN_PATTERN_HEIGHT = 9
+
+# Fraction of cells for which extra loop openings are added in imperfect mode.
+DEFAULT_LOOP_FACTOR = 0.08
+
 
 @dataclass(frozen=True)
 class MazeParams:
@@ -95,7 +103,8 @@ class MazeGenerator:
         cells = self._build_42_cells()
         if cells is None:
             print(
-                "Warning: Maze too small to draw '42' pattern (need ≥12×9); "
+                f"Warning: Maze too small to draw '42' pattern "
+                f"(need ≥{MIN_PATTERN_WIDTH}×{MIN_PATTERN_HEIGHT}); "
                 "skipping pattern."
             )
         else:
@@ -120,7 +129,7 @@ class MazeGenerator:
         self._dfs_generate(entry[0], entry[1])
 
         if not self.params.perfect:
-            self._add_loops(loop_factor=0.08)
+            self._add_loops(loop_factor=DEFAULT_LOOP_FACTOR)
 
         # Stamp the 42 pattern (all walls closed)
         for x, y in self.blocked:
@@ -177,8 +186,7 @@ class MazeGenerator:
         The pattern is centred in the grid.  It fits in a 10-wide × 7-tall box.
         Minimum grid size required: 12 wide, 9 tall.
         """
-        min_w, min_h = 12, 9
-        if self.params.width < min_w or self.params.height < min_h:
+        if self.params.width < MIN_PATTERN_WIDTH or self.params.height < MIN_PATTERN_HEIGHT:
             return None
 
         start_x = (self.params.width - 10) // 2
@@ -227,7 +235,8 @@ class MazeGenerator:
 
         if cells is None:
             print(
-                "Warning: Maze too small to draw '42' pattern (need ≥12×9); "
+                f"Warning: Maze too small to draw '42' pattern "
+                f"(need ≥{MIN_PATTERN_WIDTH}×{MIN_PATTERN_HEIGHT}); "
                 "skipping pattern."
             )
             return True

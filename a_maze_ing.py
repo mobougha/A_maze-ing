@@ -230,7 +230,7 @@ def write_output(
 def main() -> None:
     """Entry point: python3 a_maze_ing.py config.txt"""
     if len(sys.argv) != 2:
-        print("Usage: python3 a_maze_ing.py config.txt")
+        print("Usage: python3 a_maze_ing.py <config_file>")
         sys.exit(1)
 
     try:
