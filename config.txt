@@ -1,12 +1,7 @@
-WIDTH=10
-HEIGHT=10
-ENTRY=0,0
+WIDTH=15
+HEIGHT=15
+ENTRY=1,4
 EXIT=9,9
 OUTPUT_FILE=maze.txt
-<<<<<<< HEAD
-PERFECT=True
-#SEED=42
-=======
 PERFECT=False
 SEED=42
->>>>>>> d11976c (ok)
