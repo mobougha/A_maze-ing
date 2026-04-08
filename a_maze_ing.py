@@ -4,7 +4,13 @@ import sys
 from dataclasses import dataclass
 from typing import Optional
 
+<<<<<<< HEAD
 from maze_generator import MazeGenerator, MazeParams
+=======
+from mazegen_bestteam.maze_generator import MazeGenerator, MazeParams
+from mazegen_bestteam.pathfinder import find_shortest_path
+from renderer import MazeRenderer
+>>>>>>> d11976c (ok)
 
 
 @dataclass(frozen=True)
@@ -25,6 +31,7 @@ def _parse_bool(value: str) -> bool:
     if v in {"false", "0", "no", "n"}:
         return False
     raise ValueError(f"Invalid boolean value: {value!r} (expected True/False)")
+<<<<<<< HEAD
 
 
 def _parse_xy(value: str) -> tuple[int, int]:
@@ -123,6 +130,84 @@ def display_maze(grid: list[list[int]], entry: tuple[int, int], exit_: tuple[int
     print("+---" * w + "+")
 
 
+=======
+
+
+def _parse_xy(value: str) -> tuple[int, int]:
+    parts = [p.strip() for p in value.split(",")]
+    if len(parts) != 2:
+        raise ValueError(f"Invalid coordinate {value!r} (expected 'x,y')")
+    return (int(parts[0]), int(parts[1]))
+
+
+def parse_config(file_path: str) -> Config:
+    raw: dict[str, str] = {}
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        for lineno, line in enumerate(f, start=1):
+            s = line.strip()
+            if not s or s.startswith("#"):
+                continue
+            if "=" not in s:
+                raise ValueError(f"{file_path}:{lineno}: invalid line (missing '='): {s!r}")
+
+            key, value = s.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+
+            if not key:
+                raise ValueError(f"{file_path}:{lineno}: empty key")
+            if key in raw:
+                raise ValueError(f"{file_path}:{lineno}: duplicate key: {key}")
+
+            raw[key] = value
+
+    required = ["WIDTH", "HEIGHT", "ENTRY", "EXIT", "OUTPUT_FILE", "PERFECT"]
+    for k in required:
+        if k not in raw:
+            raise ValueError(f"Missing key: {k}")
+
+    width = int(raw["WIDTH"])
+    height = int(raw["HEIGHT"])
+    entry = _parse_xy(raw["ENTRY"])
+    exit_ = _parse_xy(raw["EXIT"])
+    output_file = raw["OUTPUT_FILE"]
+    perfect = _parse_bool(raw["PERFECT"])
+
+    seed: Optional[int] = None
+    if "SEED" in raw and raw["SEED"] != "":
+        seed = int(raw["SEED"])
+
+    if width <= 0 or height <= 0:
+        raise ValueError("WIDTH and HEIGHT must be > 0")
+    if entry == exit_:
+        raise ValueError("ENTRY and EXIT must be different")
+
+    ex, ey = entry
+    xx, xy = exit_
+    if not (0 <= ex < width and 0 <= ey < height):
+        raise ValueError(f"ENTRY out of bounds: {entry} for {width}x{height}")
+    if not (0 <= xx < width and 0 <= xy < height):
+        raise ValueError(f"EXIT out of bounds: {exit_} for {width}x{height}")
+
+    if not output_file:
+        raise ValueError("OUTPUT_FILE must not be empty")
+
+    return Config(
+        width=width,
+        height=height,
+        entry=entry,
+        exit=exit_,
+        output_file=output_file,
+        perfect=perfect,
+        seed=seed,
+    )
+
+
+
+
+
+>>>>>>> d11976c (ok)
 def main() -> None:
     if len(sys.argv) != 2:
         print("Usage: python3 a_maze_ing.py config.txt")
@@ -145,7 +230,42 @@ def main() -> None:
         print(f"Error: {e}")
         return
 
+<<<<<<< HEAD
     display_maze(gen.grid, cfg.entry, cfg.exit)
+=======
+    path_str = find_shortest_path(gen.grid, cfg.entry, cfg.exit)
+    if path_str is None:
+        print("Warning: No path found from entry to exit!")
+
+    renderer = MazeRenderer(gen.grid, cfg.entry, cfg.exit, gen.pattern_cells)
+    renderer.set_path(path_str)
+
+    while True:
+        renderer.display()
+        key = renderer.wait_key()
+        if key == 'R':
+            gen = MazeGenerator(
+                MazeParams(
+                    width=cfg.width,
+                    height=cfg.height,
+                    entry=cfg.entry,
+                    exit=cfg.exit,
+                    perfect=cfg.perfect,
+                    seed=None,
+                )
+            )
+            gen.generate()
+            path_str = find_shortest_path(gen.grid, cfg.entry, cfg.exit) or ""
+            renderer = MazeRenderer(gen.grid, cfg.entry, cfg.exit, gen.pattern_cells)
+            renderer.set_path(path_str)
+        elif key == 'P':
+            renderer.toggle_path()
+        elif key == 'C':
+            renderer.cycle_color()
+        elif key == 'Q':
+            print("Goodbye!")
+            break
+>>>>>>> d11976c (ok)
 
 
 if __name__ == "__main__":

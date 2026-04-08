@@ -1,0 +1,32 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Virtual Environments
+venv/
+env/
+.venv/
+
+# IDEs and Tools
+.idea/
+.vscode/
+.mypy_cache/
+.pytest_cache/
+
+# Outputs and logs
+*.log
+maze.txt
+
+# Temp files created during debugging
+f.txt
+m.txt
+err.txt
+pdf_out.txt
+flake8.log
+mypy.log
