@@ -1,131 +1,80 @@
-*This project has been created as part of the 42 curriculum by <login1> and <login2>.*
+*This project has been created as part of the 42 curriculum by [mobougha] & [].*
 
 # A-Maze-ing
 
-A-Maze-ing is a modular maze generator and solver written in Python. It produces a terminal maze that integrates the mandatory "42" pattern, computes the shortest solution path, and exports results to a standardized hexadecimal file.
+## Description
+A-Maze-ing is a Python-based maze generation and visualization tool. The primary goal of this project is to create complex, solvable mazes based on user-defined configurations, featuring a mandatory "42" pattern embedded into the center of the grid. The application provides a command-line interface and a terminal-based visualizer to explore the generated mazes.
 
-## Algorithm
+## Instructions
 
-**Generation — Iterative Recursive Backtracker (DFS)**  
-We chose the iterative DFS algorithm because it guarantees that every cell is reachable (a perfect spanning tree), is simple to implement, and produces aesthetically long corridors. Without interrupting the generation, we mark cells for the "42" pattern and then physically seal them (set all 4 walls to closed = 0xF) *after* the DFS runs, also correcting the neighboring cells' facing walls to maintain full wall coherence.
+### Prerequisites
+- Python 3.8 or higher.
+- A terminal with ANSI color support (standard on Linux/macOS).
 
-**Solving — BFS (Breadth-First Search)**  
-BFS guarantees the absolute shortest path in an unweighted grid graph. The solution is returned as a direction string (N/E/S/W) and also saved to the output file.
-
-## Features
-
-- **"42" Pattern**: Mandatory visible pattern formed by fully-closed cells. Positioned at the center of the grid (requires >= 12×12). Entry/Exit cannot overlap the pattern. Warns if maze is too small.
-- **Shortest Path**: BFS finds the optimal path, toggleable with `[P]`.
-- **Interactive Terminal UI**: `[R]` Regen · `[P]` Path · `[C]` Color · `[Q]` Quit · `Ctrl+C` Exit
-- **Exportable**: Saves maze grid (hex), entry/exit, and solution path to a file.
-
-## Reusable Library (`mazegen`)
-
-The `mazegen` package is a standalone importable module. It can be installed via pip:
-
+### Execution
+Run the application using the provided `Makefile` or directly with Python by passing a configuration file:
 ```bash
-pip install mazegen-bestteam-0.1.0-py3-none-any.whl
+make run
+# OR
+python3 a_maze_ing.py config.txt
 ```
 
-Then used in any Python project:
+### Visualizer Controls
+Once the visualizer is open:
+- `P`: Toggle the solution path visibility.
+- `R`: Regenerate the maze (follows the seed if provided).
+- `C`: Cycle through different UI color schemes.
+- `Q`: Quit the application.
 
-```python
-from mazegen import MazeGenerator, MazeParams
+## Config File Structure
+The configuration file (`config.txt`) must follow a strict `KEY=VALUE` format. Blank lines and lines starting with `#` are ignored.
 
-params = MazeParams(width=20, height=20, entry=(0, 0), exit=(19, 19), perfect=True)
-gen = MazeGenerator(params)
-gen.generate()
+| Key | Description | Example |
+| :--- | :--- | :--- |
+| `WIDTH` | Number of columns (min 12 for pattern) | `20` |
+| `HEIGHT` | Number of rows (min 12 for pattern) | `20` |
+| `ENTRY` | Starting coordinates (x,y) | `0,0` |
+| `EXIT` | Exit coordinates (x,y) | `19,19` |
+| `OUTPUT_FILE` | Filename to save the hex grid | `maze.txt` |
+| `PERFECT` | `true` for no loops, `false` for cycles | `false` |
+| `SEED` | (Optional) String or integer for same results | `my_seed_123` |
 
-print(gen.grid)          # 2D list[list[int]], hex cell bitmasks
-print(gen.pattern_cells) # list of (x,y) of "42" pattern cells
-print(gen.warning)       # Non-empty string if maze too small for "42"
+## Technical Choices
 
-path = gen.solve()       # 'NESSWN...' or None
-```
+### Maze Generation Algorithm
+I chose the **Iterative Depth-First Search (DFS)** algorithm.
 
-### MazeParams attributes
+### Why this algorithm?
+- **Solvability:** It guarantees every cell is reachable and there is exactly one path between any two points (before adding loops).
+- **Aesthetics:** DFS creates long, winding corridors that are more challenging and visually interesting than algorithms like Prim's.
+- **Robustness:** I implemented it **iteratively** using a manual stack instead of recursion. This prevents "Stack Overflow" errors when generating very large mazes (e.g., 500x500).
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `width` | `int` | Number of columns |
-| `height` | `int` | Number of rows |
-| `entry` | `tuple[int, int]` | Start cell (x, y) |
-| `exit` | `tuple[int, int]` | Exit cell (x, y) |
-| `perfect` | `bool` | `True` = no loops (spanning tree) |
-| `seed` | `Optional[int]` | Random seed (None = system random) |
-
-## Requirements
-
-- Python 3.10+
-
-## Installation
-
-```bash
-git clone <repository-url>
-cd A_maze-ing
-pip install -e .
-```
-
-Or install directly from the wheel:
-
-```bash
-pip install mazegen-bestteam-0.1.0-py3-none-any.whl
-```
-
-## Usage
-
-```bash
-python a_maze_ing.py config.txt
-```
-
-### Configuration Format
-
-```ini
-WIDTH=20            # Width of the maze
-HEIGHT=20           # Height of the maze
-ENTRY=0,0           # Start coordinates (x,y)
-EXIT=19,19          # End coordinates (x,y)
-OUTPUT_FILE=maze.txt
-PERFECT=true        # true = no loops, false = imperfect
-SEED=42             # Optional: integer seed for reproducibility
-```
-
-### Output File Format (`maze.txt`)
-
-```
-F9F5...   <- hexadecimal row (one char per cell)
-...
-           <- blank line separator
-0,0        <- entry coordinates
-19,19      <- exit coordinates
-NNEESS...  <- shortest path directions (N/E/S/W)
-```
-
-## Makefile
-
-```bash
-make install       # Install dependencies
-make run           # Run the program
-make lint          # flake8 PEP8 check
-make lint-strict   # mypy --strict type check
-make build         # Build distributable package
-make clean         # Remove build artifacts
-```
-
-> **Note**: On Windows, `make` is not installed by default. Use `python a_maze_ing.py config.txt` directly, or install `make` via Chocolatey: `choco install make`.
+### Reusability
+- **`MazeGenerator` Class:** This logic is entirely decoupled from the display. It can be imported into any other Python project to generate grids or solve paths without needing the terminal UI.
+- **Hex Encoding logic:** the `save_maze` function adheres to the standard 4-bit wall encoding format, making the output compatible with other 42 maze projects.
 
 ## Resources
+- [Wikipedia: Maze Generation Algorithms](https://en.wikipedia.org/wiki/Maze_generation_algorithm)
+- [Python Random Module Documentation](https://docs.python.org/3/library/random.html)
+- [ANSI Escape Codes for Terminal Styling](https://en.wikipedia.org/wiki/ANSI_escape_code)
 
-- Python `random` module — for DFS shuffle
-- Maze generation theory: [Wikipedia – Maze generation algorithm](https://en.wikipedia.org/wiki/Maze_generation_algorithm)
-- BFS shortest path: [Wikipedia – Breadth-first search](https://en.wikipedia.org/wiki/Breadth-first_search)
-- AI assistance (Google Gemini / Antigravity) was used during this project to assist with code review, error correction, modularization, and documentation writing.
+### AI Usage
+AI (Antigravity) was used as a pair-programmer for this project:
+- **Algorithm Implementation:** Assisted in converting the recursive DFS logic into an iterative stack-based approach.
+- **UI Design:** Helped design the `MazeRenderer` using ANSI escape codes for the "blocks" look and color schemes.
+- **Debugging:** Assisted in troubleshooting seed reproducibility issues and configuration parsing edge cases.
 
-## Team
+## Project Management
 
-| Member | Role |
-|--------|------|
-| Developer A | Maze generation logic, DFS, pattern integration |
-| Developer B | BFS solver, renderer, config parsing, packaging |
+### Roles
+- **[LOGIN]:** Lead Developer - Responsible for core Generation logic, UI Rendering, and Project Architecture.
 
-**Planning**: The project was split into two phases — (1) core generation + pattern, (2) solving + UI + packaging. Code reviews were done via pull requests. The main challenge was ensuring wall coherence when sealing "42" cells after DFS generation.
+### Planning & Evolution
+- **Initial Plan:** Build a simple DFS generator that outputs text.
+- **Mid-Project:** Realized the need for an iterative approach to support larger grids and added the BFS solver to verify validity.
+- **Final Phase:** Integrated the visualizer and the mandatory "42" pattern logic.
+
+### Assessment
+- **What worked well:** The iterative DFS approach proved very stable. The separation between `MazeGenerator` and `MazeRenderer` allowed for quick UI tweaks without breaking the generation.
+- **Improvements:** Could add more algorithms (like Kruskal’s or Wilson’s) to offer different "styles" of mazes.
+- **Tools used:** VS Code, Git, Python `unittest` for validation, and Antigravity AI.

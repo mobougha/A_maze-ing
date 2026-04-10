@@ -184,6 +184,9 @@ def main() -> None:
             renderer.display()
             key = renderer.wait_key()
             if key == 'R':
+                # If a seed was provided in config, reuse it so the same maze
+                # is always reproduced. If no seed was given, use None so a
+                # fresh random maze is generated each time.
                 gen = MazeGenerator(
                     MazeParams(
                         width=cfg.width,
@@ -191,7 +194,7 @@ def main() -> None:
                         entry=cfg.entry,
                         exit=cfg.exit,
                         perfect=cfg.perfect,
-                        seed=None,
+                        seed=cfg.seed,
                     )
                 )
                 gen.generate()

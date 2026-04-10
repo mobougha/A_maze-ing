@@ -70,8 +70,10 @@ class MazeGenerator:
             params: Configuration parameters for the maze.
         """
         self.params = params
-        # Always reset the random seed; None = system/random time
-        random.seed(params.seed)
+        # Always reset the random seed. None = system/random time.
+        # We check 'is not None' because '0' is a valid seed but evaluates to False.
+        if params.seed is not None:
+            random.seed(params.seed)
 
         self.warning: str = ""
 
