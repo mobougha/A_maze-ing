@@ -1,22 +1,30 @@
-.PHONY: install run debug clean lint lint-strict
+# Makefile for A-Maze-ing project
+
+PYTHON = python3
+PIP = pip
+MAIN = a_maze_ing.py
+CONFIG = config.txt
+
+.PHONY: all install run debug clean lint build
+
+all: install
 
 install:
-	pip install -r requirements.txt
+	$(PIP) install -e .
 
 run:
-	python3 a_maze_ing.py config.txt
+	$(PYTHON) $(MAIN) $(CONFIG)
 
 debug:
-	python3 -m pdb a_maze_ing.py config.txt
+	$(PYTHON) -m pdb $(MAIN) $(CONFIG)
 
 clean:
-	rm -rf __pycache__ .mypy_cache .pytest_cache
-	rm -f maze.txt
+	rm -rf build/ dist/ *.egg-info .mypy_cache .pytest_cache
+	find . -type d -name "__pycache__" -exec rm -rf {} +
 
 lint:
 	flake8 .
 	mypy . --warn-return-any --warn-unused-ignores --ignore-missing-imports --disallow-untyped-defs --check-untyped-defs
 
-lint-strict:
-	flake8 .
-	mypy . --strict
+build:
+	$(PYTHON) -m build

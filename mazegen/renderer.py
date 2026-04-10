@@ -20,10 +20,12 @@ COLORS = {
 class MazeRenderer:
     """Handles ASCII rendering and user interaction."""
 
-    def __init__(self, grid: List[List[int]],
+    def __init__(self,
+                 grid: List[List[int]],
                  entry: Tuple[int, int],
                  exit_: Tuple[int, int],
-                 pattern_cells: List[Tuple[int, int]]):
+                 pattern_cells: List[Tuple[int, int]]) -> None:
+        """Initialize renderer with maze grid and key locations."""
         self.grid = grid
         self.height = len(grid)
         self.width = len(grid[0])
@@ -33,6 +35,11 @@ class MazeRenderer:
         self.show_path = False
         self.path_directions: Optional[str] = None
         self.wall_color = COLORS['wall']
+        self.status_msg: str = ""
+
+    def set_status(self, msg: str) -> None:
+        """Set a status/warning message to display."""
+        self.status_msg = msg
 
     def set_path(self, path: Optional[str]) -> None:
         """Set the shortest path to display."""
@@ -77,16 +84,19 @@ class MazeRenderer:
     def display(self) -> None:
         """Clear screen and draw the maze."""
         os.system('cls' if os.name == 'nt' else 'clear')
+        wc = self.wall_color
+        res = COLORS['reset']
+
         for y in range(self.height):
             # Top walls line
             top = ""
             for x in range(self.width):
                 cell = self.grid[y][x]
                 if cell & 1:   # north wall closed
-                    top += "+---"
+                    top += f"{wc}+---{res}"
                 else:
-                    top += "+   "
-            print(top + "+")
+                    top += f"{wc}+{res}   "
+            print(top + f"{wc}+{res}")
 
             # Middle line (left wall + cell content)
             middle = ""
@@ -94,7 +104,7 @@ class MazeRenderer:
                 cell = self.grid[y][x]
                 # Left wall
                 if cell & 8:
-                    middle += "|"
+                    middle += f"{wc}|{res}"
                 else:
                     middle += " "
 
@@ -104,27 +114,39 @@ class MazeRenderer:
                 elif (x, y) == self.exit:
                     middle += f"{COLORS['exit']} X {COLORS['reset']}"
                 elif (x, y) in self.pattern_cells:
-                    middle += f"{self.wall_color}###{COLORS['reset']}"
+                    middle += f"{wc}###{res}"
                 elif self._is_on_path(x, y):
                     middle += f"{COLORS['path']} * {COLORS['reset']}"
                 else:
                     middle += "   "
             # Right wall
-            middle += "|"
+            middle += f"{wc}|{res}"
             print(middle)
 
         # Bottom wall line
-        bottom = "+---" * self.width + "+"
+        bottom = (f"{wc}+---{res}" * self.width) + f"{wc}+{res}"
         print(bottom)
 
         # Print legend
         print("\nCommands: [R]egen  [P]ath  [C]olor  [Q]uit")
+        if self.status_msg:
+            print(
+                f"{COLORS['pattern']}Warning: "
+                f"{self.status_msg}{COLORS['reset']}"
+            )
 
     def wait_key(self) -> str:
         """Wait for a single key press and return it as uppercase."""
         if sys.platform == 'win32':
             import msvcrt
-            return msvcrt.getch().decode().upper()
+            # Read character, check for Ctrl+C (b'\x03')
+            ch_bytes = msvcrt.getch()
+            if ch_bytes == b'\x03':
+                raise KeyboardInterrupt
+            try:
+                return ch_bytes.decode().upper()
+            except (UnicodeDecodeError, AttributeError):
+                return ""
         else:
             import termios
             import tty
@@ -133,6 +155,9 @@ class MazeRenderer:
             try:
                 tty.setraw(fd)
                 ch = sys.stdin.read(1)
+                # Check for Ctrl+C in raw mode
+                if ch == '\x03':
+                    raise KeyboardInterrupt
+                return ch.upper()
             finally:
-                termios.tcsetattr(fd, termios.TCSADRAIN, old)
-            return ch.upper()
+                termios.tcsetattr(fd, termios.TCSADRAIN, old)

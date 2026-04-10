@@ -4,9 +4,8 @@ import sys
 from dataclasses import dataclass
 from typing import Optional
 
-from mazegen_bestteam.maze_generator import MazeGenerator, MazeParams
-from mazegen_bestteam.pathfinder import find_shortest_path
-from renderer import MazeRenderer
+from mazegen.maze_generator import MazeGenerator, MazeParams
+from mazegen.renderer import MazeRenderer
 
 
 @dataclass(frozen=True)
@@ -30,54 +29,77 @@ def _parse_bool(value: str) -> bool:
 
 
 def _parse_xy(value: str) -> tuple[int, int]:
+    # Handle optional spaces around comma
     parts = [p.strip() for p in value.split(",")]
     if len(parts) != 2:
         raise ValueError(f"Invalid coordinate {value!r} (expected 'x,y')")
-    return (int(parts[0]), int(parts[1]))
+    try:
+        return (int(parts[0]), int(parts[1]))
+    except ValueError:
+        raise ValueError(f"Invalid integer in coordinate: {value!r}")
 
 
 def parse_config(file_path: str) -> Config:
+    """Parse configuration from file with robust error handling."""
     raw: dict[str, str] = {}
 
-    with open(file_path, "r", encoding="utf-8") as f:
-        for lineno, line in enumerate(f, start=1):
-            s = line.strip()
-            if not s or s.startswith("#"):
-                continue
-            if "=" not in s:
-                raise ValueError(f"{file_path}:{lineno}: invalid line (missing '='): {s!r}")
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            for lineno, line in enumerate(f, start=1):
+                # Remove comments and whitespace
+                s = line.split("#")[0].strip()
+                if not s:
+                    continue
+                if "=" not in s:
+                    raise ValueError(
+                        f"{file_path}:{lineno}: invalid line "
+                        f"(missing '='): {line.strip()!r}"
+                    )
 
-            key, value = s.split("=", 1)
-            key = key.strip()
-            value = value.strip()
+                key, value = s.split("=", 1)
+                key = key.strip()
+                value = value.strip()
 
-            if not key:
-                raise ValueError(f"{file_path}:{lineno}: empty key")
-            if key in raw:
-                raise ValueError(f"{file_path}:{lineno}: duplicate key: {key}")
+                if not key:
+                    raise ValueError(f"{file_path}:{lineno}: empty key")
+                if key in raw:
+                    raise ValueError(
+                        f"{file_path}:{lineno}: duplicate key: {key}"
+                    )
 
-            raw[key] = value
+                raw[key] = value
+    except FileNotFoundError:
+        raise ValueError(f"Configuration file not found: {file_path}")
 
-    required = ["WIDTH", "HEIGHT", "ENTRY", "EXIT", "OUTPUT_FILE", "PERFECT"]
+    required = [
+        "WIDTH", "HEIGHT", "ENTRY", "EXIT", "OUTPUT_FILE", "PERFECT"
+    ]
     for k in required:
         if k not in raw:
-            raise ValueError(f"Missing key: {k}")
+            raise ValueError(f"Missing mandatory configuration key: {k}")
 
-    width = int(raw["WIDTH"])
-    height = int(raw["HEIGHT"])
-    entry = _parse_xy(raw["ENTRY"])
-    exit_ = _parse_xy(raw["EXIT"])
-    output_file = raw["OUTPUT_FILE"]
-    perfect = _parse_bool(raw["PERFECT"])
+    try:
+        width = int(raw["WIDTH"])
+        height = int(raw["HEIGHT"])
+        entry = _parse_xy(raw["ENTRY"])
+        exit_ = _parse_xy(raw["EXIT"])
+        output_file = raw["OUTPUT_FILE"]
+        perfect = _parse_bool(raw["PERFECT"])
+    except ValueError as e:
+        raise ValueError(f"Configuration error: {e}")
 
     seed: Optional[int] = None
-    if "SEED" in raw and raw["SEED"] != "":
-        seed = int(raw["SEED"])
+    if "SEED" in raw and raw["SEED"].strip():
+        try:
+            seed = int(raw["SEED"])
+        except ValueError:
+            # Fallback for non-integer seeds
+            seed = sum(ord(c) for c in raw["SEED"])
 
     if width <= 0 or height <= 0:
-        raise ValueError("WIDTH and HEIGHT must be > 0")
+        raise ValueError(f"WIDTH ({width}) and HEIGHT ({height}) must be > 0")
     if entry == exit_:
-        raise ValueError("ENTRY and EXIT must be different")
+        raise ValueError(f"ENTRY and EXIT must be different: {entry}")
 
     ex, ey = entry
     xx, xy = exit_
@@ -100,10 +122,27 @@ def parse_config(file_path: str) -> Config:
     )
 
 
+def save_maze(
+    file_path: str,
+    grid: list[list[int]],
+    entry: tuple[int, int],
+    exit_: tuple[int, int],
+    path: Optional[str]
+) -> None:
+    """Save the maze to a file in the required hexadecimal format."""
+    with open(file_path, "w", encoding="utf-8") as f:
+        # Hexadecimal grid
+        for row in grid:
+            f.write("".join(f"{cell:X}" for cell in row) + "\n")
 
+        f.write("\n")
+        f.write(f"{entry[0]},{entry[1]}\n")
+        f.write(f"{exit_[0]},{exit_[1]}\n")
+        f.write(f"{path if path else ''}\n")
 
 
 def main() -> None:
+    """Entry point for the maze generator application."""
     if len(sys.argv) != 2:
         print("Usage: python3 a_maze_ing.py config.txt")
         return
@@ -121,42 +160,60 @@ def main() -> None:
             )
         )
         gen.generate()
+
+        # Initial save
+        path_str = gen.solve()
+        save_maze(cfg.output_file, gen.grid, cfg.entry, cfg.exit, path_str)
+        print(f"Maze successfully generated and saved to {cfg.output_file}")
+
     except (OSError, ValueError) as e:
         print(f"Error: {e}")
-        return
+        sys.exit(1)
 
-    path_str = find_shortest_path(gen.grid, cfg.entry, cfg.exit)
+    # For renderer usage
+    path_str = gen.solve()
     if path_str is None:
         print("Warning: No path found from entry to exit!")
 
     renderer = MazeRenderer(gen.grid, cfg.entry, cfg.exit, gen.pattern_cells)
+    renderer.set_status(gen.warning)
     renderer.set_path(path_str)
 
-    while True:
-        renderer.display()
-        key = renderer.wait_key()
-        if key == 'R':
-            gen = MazeGenerator(
-                MazeParams(
-                    width=cfg.width,
-                    height=cfg.height,
-                    entry=cfg.entry,
-                    exit=cfg.exit,
-                    perfect=cfg.perfect,
-                    seed=None,
+    try:
+        while True:
+            renderer.display()
+            key = renderer.wait_key()
+            if key == 'R':
+                gen = MazeGenerator(
+                    MazeParams(
+                        width=cfg.width,
+                        height=cfg.height,
+                        entry=cfg.entry,
+                        exit=cfg.exit,
+                        perfect=cfg.perfect,
+                        seed=None,
+                    )
                 )
-            )
-            gen.generate()
-            path_str = find_shortest_path(gen.grid, cfg.entry, cfg.exit) or ""
-            renderer = MazeRenderer(gen.grid, cfg.entry, cfg.exit, gen.pattern_cells)
-            renderer.set_path(path_str)
-        elif key == 'P':
-            renderer.toggle_path()
-        elif key == 'C':
-            renderer.cycle_color()
-        elif key == 'Q':
-            print("Goodbye!")
-            break
+                gen.generate()
+                path_str = gen.solve() or ""
+
+                save_maze(cfg.output_file, gen.grid, cfg.entry, cfg.exit,
+                          path_str)
+
+                renderer = MazeRenderer(
+                    gen.grid, cfg.entry, cfg.exit, gen.pattern_cells
+                )
+                renderer.set_status(gen.warning)
+                renderer.set_path(path_str)
+            elif key == 'P':
+                renderer.toggle_path()
+            elif key == 'C':
+                renderer.cycle_color()
+            elif key == 'Q':
+                print("Goodbye!")
+                break
+    except KeyboardInterrupt:
+        print("\nInterrupted by user. Goodbye!")
 
 
 if __name__ == "__main__":
