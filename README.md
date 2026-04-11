@@ -27,17 +27,37 @@ Once the visualizer is open:
 - `Q`: Quit the application.
 
 ## Config File Structure
-The configuration file (`config.txt`) must follow a strict `KEY=VALUE` format. Blank lines and lines starting with `#` are ignored.
+The configuration file (`config.txt`) must follow a strict `KEY=VALUE` format. Blank lines and lines starting with `#` are ignored. Values can have optional leading/trailing whitespace.
 
-| Key | Description | Example |
+### Format Example
+```ini
+# Grid dimensions (min 12x12 for '42' pattern)
+WIDTH=20
+HEIGHT=20
+
+# Starting and ending coordinates (x,y)
+ENTRY=0,0
+EXIT=19,19
+
+# Path to save the hex-encoded maze
+OUTPUT_FILE=maze.txt
+
+PERFECT=false
+
+# Optional seed for reproducible generation
+SEED=my_unique_seed_123
+```
+
+### Supported Keys
+| Key | Description | Requirement |
 | :--- | :--- | :--- |
-| `WIDTH` | Number of columns (min 12 for pattern) | `20` |
-| `HEIGHT` | Number of rows (min 12 for pattern) | `20` |
-| `ENTRY` | Starting coordinates (x,y) | `0,0` |
-| `EXIT` | Exit coordinates (x,y) | `19,19` |
-| `OUTPUT_FILE` | Filename to save the hex grid | `maze.txt` |
-| `PERFECT` | `true` for no loops, `false` for cycles | `false` |
-| `SEED` | (Optional) String or integer for same results | `my_seed_123` |
+| `WIDTH` | Number of columns | Integer > 0 |
+| `HEIGHT` | Number of rows | Integer > 0 |
+| `ENTRY` | Starting coordinates | Valid `x,y` |
+| `EXIT` | Final coordinates | Valid `x,y` |
+| `OUTPUT_FILE` | Hex output path | Valid filename |
+| `PERFECT` | Loop generation | `true` or `false` |
+| `SEED` | Random seed | Optional string/int |
 
 ## Technical Choices
 
@@ -45,36 +65,47 @@ The configuration file (`config.txt`) must follow a strict `KEY=VALUE` format. B
 I chose the **Iterative Depth-First Search (DFS)** algorithm.
 
 ### Why this algorithm?
-- **Solvability:** It guarantees every cell is reachable and there is exactly one path between any two points (before adding loops).
-- **Aesthetics:** DFS creates long, winding corridors that are more challenging and visually interesting than algorithms like Prim's.
-- **Robustness:** I implemented it **iteratively** using a manual stack instead of recursion. This prevents "Stack Overflow" errors when generating very large mazes (e.g., 500x500).
+- **Solvability:** It guarantees every cell is reachable and there is exactly one path between any two points (in "perfect" mode).
+- **Aesthetics:** DFS creates long, winding corridors and deep "dead ends," which are more challenging and visually interesting than other algorithms.
 
 ### Reusability
-- **`MazeGenerator` Class:** This logic is entirely decoupled from the display. It can be imported into any other Python project to generate grids or solve paths without needing the terminal UI.
-- **Hex Encoding logic:** the `save_maze` function adheres to the standard 4-bit wall encoding format, making the output compatible with other 42 maze projects.
+The project is architected with a strict separation of concerns, making significant parts of the code reusable:
+
+- **`mazegen` Package:** The generation and rendering logic are encapsulated in a standalone package.
+- **`MazeGenerator` Class:** This core logic is entirely decoupled from the display. It can be imported into any other Python project to generate grids or solve paths.
+- **Hex Encoding logic:** The `save_maze` function adheres to the standard 4-bit wall encoding format (N=1, E=2, S=4, W=8), making the output compatible with professional hex-grid tools.
+
+#### How to Reuse (Example Script)
+```python
+from mazegen.maze_generator import MazeGenerator, MazeParams
+
+# Configure parameters
+params = MazeParams(width=20, height=20, entry=(0,0), exit=(19,19), perfect=True)
+
+# Generate and solve
+gen = MazeGenerator(params)
+gen.generate()
+path = gen.solve()
+
+# Access the raw grid (hex values)
+print(gen.grid)
+```
 
 ## Resources
 - [Wikipedia: Maze Generation Algorithms](https://en.wikipedia.org/wiki/Maze_generation_algorithm)
 - [Python Random Module Documentation](https://docs.python.org/3/library/random.html)
-- [ANSI Escape Codes for Terminal Styling](https://en.wikipedia.org/wiki/ANSI_escape_code)
 
 ### AI Usage
-AI (Antigravity) was used as a pair-programmer for this project:
-- **Algorithm Implementation:** Assisted in converting the recursive DFS logic into an iterative stack-based approach.
-- **UI Design:** Helped design the `MazeRenderer` using ANSI escape codes for the "blocks" look and color schemes.
-- **Debugging:** Assisted in troubleshooting seed reproducibility issues and configuration parsing edge cases.
+- help clarif
 
-## Project Management
+## Team & Project Management
 
 ### Roles
-- **[LOGIN]:** Lead Developer - Responsible for core Generation logic, UI Rendering, and Project Architecture.
+- **[mobougha]:** Responsible for maze generation and configuration parsing logic.
+- **[Azeroual]:** Responsible for the pathfinding (solving) algorithms and the terminal display/renderer.
 
 ### Planning & Evolution
 - **Initial Plan:** Build a simple DFS generator that outputs text.
 - **Mid-Project:** Realized the need for an iterative approach to support larger grids and added the BFS solver to verify validity.
 - **Final Phase:** Integrated the visualizer and the mandatory "42" pattern logic.
 
-### Assessment
-- **What worked well:** The iterative DFS approach proved very stable. The separation between `MazeGenerator` and `MazeRenderer` allowed for quick UI tweaks without breaking the generation.
-- **Improvements:** Could add more algorithms (like Kruskal’s or Wilson’s) to offer different "styles" of mazes.
-- **Tools used:** VS Code, Git, Python `unittest` for validation, and Antigravity AI.
