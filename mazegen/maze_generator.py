@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import random
 from collections import deque
-from dataclasses import dataclass
+
 from typing import Optional, Generator, Deque, Set, Tuple
 
 # Direction bit constants (N=1, E=2, S=4, W=8)
@@ -23,27 +23,6 @@ DIRS = [
 OPPOSITE = {N: S, S: N, E: W, W: E}
 
 
-@dataclass(frozen=True)
-class MazeParams:
-    """Parameters for maze generation.
-
-    Attributes:
-        width: Number of columns.
-        height: Number of rows.
-        entry: (x, y) start cell.
-        exit: (x, y) end cell.
-        perfect: If True, generate a perfect maze (no loops).
-        seed: Optional random seed for reproducibility.
-    """
-
-    width: int
-    height: int
-    entry: tuple[int, int]
-    exit: tuple[int, int]
-    perfect: bool
-    seed: Optional[int] = None
-
-
 class MazeGenerator:
     """DFS-based maze generator with integrated BFS solver.
 
@@ -56,42 +35,53 @@ class MazeGenerator:
 
     Usage::
 
-        params = MazeParams(width=20, height=20, entry=(0,0), exit=(19,19),
+        gen = MazeGenerator(width=20, height=20, entry=(0,0), exit=(19,19),
                             perfect=True)
-        gen = MazeGenerator(params)
         gen.generate()
         path = gen.solve()  # -> 'NESSWN...' or None
     """
 
-    def __init__(self, params: MazeParams) -> None:
+    def __init__(self, width: int, height: int,
+                 entry: tuple[int, int], exit: tuple[int, int],
+                 perfect: bool, seed: Optional[int] = None) -> None:
         """Initialize the maze generator.
 
         Args:
-            params: Configuration parameters for the maze.
+            width: Number of columns in the maze.
+            height: Number of rows in the maze.
+            entry: (x, y) coordinates of the maze entrance.
+            exit: (x, y) coordinates of the maze exit.
+            perfect: If True, generate a perfect maze (no loops).
+            seed: Optional RNG seed for reproducibility.
         """
-        self.params = params
+        self.width: int = width
+        self.height: int = height
+        self.entry: tuple[int, int] = entry
+        self.exit: tuple[int, int] = exit
+        self.perfect: bool = perfect
+        self.seed: Optional[int] = seed
         # Always reset the random seed. None = system/random time.
         # We check 'is not None' because '0' is a valid seed but evaluates to False.
-        if params.seed is not None:
-            random.seed(params.seed)
+        if self.seed is not None:
+            random.seed(self.seed)
 
         self.warning: str = ""
 
         self.grid: list[list[int]] = [
-            [15 for _ in range(params.width)]
-            for _ in range(params.height)
+            [15 for _ in range(self.width)]
+            for _ in range(self.height)
         ]
         self.blocked: set[tuple[int, int]] = set()
 
         self.pattern: list[list[bool]] = [
-            [False for _ in range(params.width)]
-            for _ in range(params.height)
+            [False for _ in range(self.width)]
+            for _ in range(self.height)
         ]
         self.pattern_cells: list[tuple[int, int]] = []
 
     def _in_bounds(self, x: int, y: int) -> bool:
         """Return True if (x, y) is within the maze grid."""
-        return 0 <= x < self.params.width and 0 <= y < self.params.height
+        return 0 <= x < self.width and 0 <= y < self.height
 
     def _neighbors(self, x: int, y: int) -> \
             Generator[tuple[int, int, int, str], None, None]:
@@ -133,7 +123,7 @@ class MazeGenerator:
 
         self._dfs_from_entry()
 
-        if not self.params.perfect:
+        if not self.perfect:
             self._add_loops(loop_factor=0.08)
 
         # Re-seal all 42 cells after DFS (DFS may have opened their walls)
@@ -142,7 +132,7 @@ class MazeGenerator:
 
     def _dfs_from_entry(self) -> None:
         """Run iterative DFS from the entry point to carve paths."""
-        ex, ey = self.params.entry
+        ex, ey = self.entry
         visited: set[tuple[int, int]] = set(self.blocked)
 
         stack = [(ex, ey)]
@@ -163,7 +153,7 @@ class MazeGenerator:
 
     def _add_loops(self, loop_factor: float) -> None:
         """Add extra random openings to create cycles (imperfect maze)."""
-        w, h = self.params.width, self.params.height
+        w, h = self.width, self.height
         attempts = max(1, int(w * h * loop_factor))
 
         for _ in range(attempts):
@@ -188,7 +178,7 @@ class MazeGenerator:
         Raises:
             ValueError: If ENTRY or EXIT overlaps with the '42' cells.
         """
-        w, h = self.params.width, self.params.height
+        w, h = self.width, self.height
         if w < 12 or h < 12:
             self.warning = "Maze too small for '42' pattern (need >= 12x12)"
             return
@@ -224,8 +214,8 @@ class MazeGenerator:
             mark(ox, start_y + i)              # Bottom-left vertical
 
         # OVERLAP CHECK
-        entry = self.params.entry
-        exit_ = self.params.exit
+        entry = self.entry
+        exit_ = self.exit
         if entry in self.pattern_cells:
             raise ValueError(
                 f"ENTRY {entry} overlaps with mandatory 42 pattern"
@@ -242,9 +232,9 @@ class MazeGenerator:
             A string of directions ('N', 'E', 'S', 'W') from entry to exit,
             or ``None`` if no path exists.
         """
-        h, w = self.params.height, self.params.width
-        sx, sy = self.params.entry
-        ex, ey = self.params.exit
+        h, w = self.height, self.width
+        sx, sy = self.entry
+        ex, ey = self.exit
 
         queue: Deque[Tuple[int, int, str]] = deque([(sx, sy, "")])
         visited: Set[Tuple[int, int]] = {(sx, sy)}
@@ -262,3 +252,23 @@ class MazeGenerator:
                         visited.add((nx, ny))
                         queue.append((nx, ny, path + label))
         return None
+
+    def save_maze(self, file_path: str, path: Optional[str] = None) -> None:
+        """Save the maze to a file in the required hexadecimal format.
+
+        Args:
+            file_path: Destination file path for the saved maze.
+            path: Optional solution path string (e.g. 'NESSWN...');
+                  if *None*, :meth:`solve` is called automatically.
+        """
+        if path is None:
+            path = self.solve()
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            for row in self.grid:
+                f.write("".join(f"{cell:X}" for cell in row) + "\n")
+
+            f.write("\n")
+            f.write(f"{self.entry[0]},{self.entry[1]}\n")
+            f.write(f"{self.exit[0]},{self.exit[1]}\n")
+            f.write(f"{path if path else ''}\n")

@@ -1,4 +1,4 @@
-*This project has been created as part of the 42 curriculum by [mobougha] & [].*
+*This project has been created as part of the 42 curriculum by [mobougha] & [abdazero].*
 
 # A-Maze-ing
 
@@ -102,7 +102,7 @@ print(gen.grid)
 
 ### Roles
 - **[mobougha]:** Responsible for maze generation and configuration parsing logic.
-- **[Azeroual]:** Responsible for the pathfinding (solving) algorithms and the terminal display/renderer.
+- **[abdazero]:** Responsible for the pathfinding (solving) algorithms and the terminal display/renderer.
 
 ### Planning & Evolution
 - **Initial Plan:** Build a simple DFS generator that outputs text.

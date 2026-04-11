@@ -4,8 +4,8 @@ import sys
 from dataclasses import dataclass
 from typing import Optional
 
-from mazegen.maze_generator import MazeGenerator, MazeParams
-from mazegen.renderer import MazeRenderer
+from mazegen.maze_generator import MazeGenerator
+from renderer import MazeRenderer
 
 
 @dataclass(frozen=True)
@@ -122,23 +122,6 @@ def parse_config(file_path: str) -> Config:
     )
 
 
-def save_maze(
-    file_path: str,
-    grid: list[list[int]],
-    entry: tuple[int, int],
-    exit_: tuple[int, int],
-    path: Optional[str]
-) -> None:
-    """Save the maze to a file in the required hexadecimal format."""
-    with open(file_path, "w", encoding="utf-8") as f:
-        # Hexadecimal grid
-        for row in grid:
-            f.write("".join(f"{cell:X}" for cell in row) + "\n")
-
-        f.write("\n")
-        f.write(f"{entry[0]},{entry[1]}\n")
-        f.write(f"{exit_[0]},{exit_[1]}\n")
-        f.write(f"{path if path else ''}\n")
 
 
 def main() -> None:
@@ -150,20 +133,18 @@ def main() -> None:
     try:
         cfg = parse_config(sys.argv[1])
         gen = MazeGenerator(
-            MazeParams(
-                width=cfg.width,
-                height=cfg.height,
-                entry=cfg.entry,
-                exit=cfg.exit,
-                perfect=cfg.perfect,
-                seed=cfg.seed,
-            )
+            width=cfg.width,
+            height=cfg.height,
+            entry=cfg.entry,
+            exit=cfg.exit,
+            perfect=cfg.perfect,
+            seed=cfg.seed,
         )
         gen.generate()
 
         # Initial save
         path_str = gen.solve()
-        save_maze(cfg.output_file, gen.grid, cfg.entry, cfg.exit, path_str)
+        gen.save_maze(cfg.output_file, path_str)
         print(f"Maze successfully generated and saved to {cfg.output_file}")
 
     except (OSError, ValueError) as e:
@@ -188,20 +169,17 @@ def main() -> None:
                 # is always reproduced. If no seed was given, use None so a
                 # fresh random maze is generated each time.
                 gen = MazeGenerator(
-                    MazeParams(
-                        width=cfg.width,
-                        height=cfg.height,
-                        entry=cfg.entry,
-                        exit=cfg.exit,
-                        perfect=cfg.perfect,
-                        seed=cfg.seed,
-                    )
+                    width=cfg.width,
+                    height=cfg.height,
+                    entry=cfg.entry,
+                    exit=cfg.exit,
+                    perfect=cfg.perfect,
+                    seed=cfg.seed,
                 )
                 gen.generate()
                 path_str = gen.solve() or ""
 
-                save_maze(cfg.output_file, gen.grid, cfg.entry, cfg.exit,
-                          path_str)
+                gen.save_maze(cfg.output_file, path_str)
 
                 renderer = MazeRenderer(
                     gen.grid, cfg.entry, cfg.exit, gen.pattern_cells

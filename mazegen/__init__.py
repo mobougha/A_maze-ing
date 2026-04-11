@@ -2,6 +2,6 @@
 Maze generation and solving library.
 """
 
-from .maze_generator import MazeGenerator, MazeParams
+from .maze_generator import MazeGenerator
 
-__all__ = ["MazeGenerator", "MazeParams"]
+__all__ = ["MazeGenerator"]
